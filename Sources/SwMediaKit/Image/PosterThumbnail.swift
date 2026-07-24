@@ -16,23 +16,33 @@ public struct PosterThumbnail: View {
     var photos: [Data]
     var size: CGFloat
     var contentMode: ContentMode
+    var borderColor: Color?
 
     @State private var cachedPhotos: [PlatformImage] = []
     @State private var cachedPhoto: PlatformImage? = nil
 
     public init(assetName: String? = nil, assetNames: [String] = [],
                 photoData: Data? = nil, photos: [Data] = [], size: CGFloat = 48,
-                contentMode: ContentMode = .fit) {
+                contentMode: ContentMode = .fit, borderColor: Color? = nil) {
         self.assetName = assetName
         self.assetNames = assetNames
         self.photoData = photoData
         self.photos = photos
         self.size = size
         self.contentMode = contentMode
+        self.borderColor = borderColor
     }
 
     private var bundleNames: [String] {
         assetNames.isEmpty ? (assetName.map { [$0] } ?? []) : assetNames
+    }
+
+    @ViewBuilder
+    private var borderOverlay: some View {
+        if let borderColor {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(borderColor, lineWidth: 2)
+        }
     }
 
     public var body: some View {
@@ -63,6 +73,7 @@ public struct PosterThumbnail: View {
         .frame(width: size, height: size)
         .background(Color.gray.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(borderOverlay)
         .task(id: photos.count) {
             guard bundleNames.isEmpty else { return }
             let data = photos

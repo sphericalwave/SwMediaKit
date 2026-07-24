@@ -26,47 +26,58 @@ public struct HeroGif: View {
     let items: [Item]
     var interval: TimeInterval
     var borderColor: Color
+    var showPauseButton: Bool
 
     @State private var paused = false
     @State private var pausedIndex = 0
 
-    public init(items: [Item], interval: TimeInterval = 4.0, borderColor: Color = .swBlue) {
+    public init(items: [Item], interval: TimeInterval = 4.0, borderColor: Color = .swBlue,
+                showPauseButton: Bool = true) {
         self.items = items
         self.interval = interval
         self.borderColor = borderColor
+        self.showPauseButton = showPauseButton
     }
 
     public var body: some View {
         GeometryReader { geo in
-            Group {
-                if !items.isEmpty {
-                    if paused {
-                        thumbnail(for: items[pausedIndex % items.count], size: geo.size.width)
-                    } else {
-                        TimelineView(.periodic(from: .now, by: interval)) { timeline in
-                            let idx = Int(timeline.date.timeIntervalSinceReferenceDate / interval) % items.count
-                            thumbnail(for: items[idx], size: geo.size.width)
-                        }
-                    }
-                }
-            }
-            .frame(width: geo.size.width, height: geo.size.width)
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(borderColor, lineWidth: 3)
-            }
-            .overlay(alignment: .topTrailing) {
-                if !items.isEmpty {
-                    pauseButton
+            content(size: geo.size.width)
+                .frame(width: geo.size.width, height: geo.size.width)
+                .overlay(border)
+                .overlay(alignment: .topTrailing) { pauseOverlay }
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    @ViewBuilder
+    private func content(size: CGFloat) -> some View {
+        if !items.isEmpty {
+            if paused {
+                thumbnail(for: items[pausedIndex % items.count], size: size)
+            } else {
+                TimelineView(.periodic(from: .now, by: interval)) { timeline in
+                    let idx = Int(timeline.date.timeIntervalSinceReferenceDate / interval) % items.count
+                    thumbnail(for: items[idx], size: size)
                 }
             }
         }
-        .aspectRatio(1, contentMode: .fit)
     }
 
     private func thumbnail(for item: Item, size: CGFloat) -> some View {
         PosterThumbnail(assetName: item.assetNames.first, assetNames: item.assetNames,
                         photos: item.photos, size: size, contentMode: .fit)
+    }
+
+    private var border: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .stroke(borderColor, lineWidth: 3)
+    }
+
+    @ViewBuilder
+    private var pauseOverlay: some View {
+        if !items.isEmpty && showPauseButton {
+            pauseButton
+        }
     }
 
     private var pauseButton: some View {
