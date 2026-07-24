@@ -22,7 +22,7 @@ public struct PosterThumbnail: View {
 
     public init(assetName: String? = nil, assetNames: [String] = [],
                 photoData: Data? = nil, photos: [Data] = [], size: CGFloat = 48,
-                contentMode: ContentMode = .fill) {
+                contentMode: ContentMode = .fit) {
         self.assetName = assetName
         self.assetNames = assetNames
         self.photoData = photoData

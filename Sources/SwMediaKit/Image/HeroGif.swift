@@ -27,9 +27,6 @@ public struct HeroGif: View {
     var interval: TimeInterval
     var borderColor: Color
 
-    /// Breathing room between the fitted image and the border stroke.
-    private let inset: CGFloat = 8
-
     @State private var paused = false
     @State private var pausedIndex = 0
 
@@ -41,15 +38,14 @@ public struct HeroGif: View {
 
     public var body: some View {
         GeometryReader { geo in
-            let innerSize = max(geo.size.width - inset * 2, 0)
             Group {
                 if !items.isEmpty {
                     if paused {
-                        thumbnail(for: items[pausedIndex % items.count], size: innerSize)
+                        thumbnail(for: items[pausedIndex % items.count], size: geo.size.width)
                     } else {
                         TimelineView(.periodic(from: .now, by: interval)) { timeline in
                             let idx = Int(timeline.date.timeIntervalSinceReferenceDate / interval) % items.count
-                            thumbnail(for: items[idx], size: innerSize)
+                            thumbnail(for: items[idx], size: geo.size.width)
                         }
                     }
                 }
