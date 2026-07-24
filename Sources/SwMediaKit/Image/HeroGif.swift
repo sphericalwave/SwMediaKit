@@ -25,28 +25,39 @@ public struct HeroGif: View {
 
     let items: [Item]
     var interval: TimeInterval
+    var borderColor: Color
+
+    /// Breathing room between the fitted image and the border stroke.
+    private let inset: CGFloat = 8
 
     @State private var paused = false
     @State private var pausedIndex = 0
 
-    public init(items: [Item], interval: TimeInterval = 4.0) {
+    public init(items: [Item], interval: TimeInterval = 4.0, borderColor: Color = .swBlue) {
         self.items = items
         self.interval = interval
+        self.borderColor = borderColor
     }
 
     public var body: some View {
         GeometryReader { geo in
+            let innerSize = max(geo.size.width - inset * 2, 0)
             Group {
                 if !items.isEmpty {
                     if paused {
-                        thumbnail(for: items[pausedIndex % items.count], size: geo.size.width)
+                        thumbnail(for: items[pausedIndex % items.count], size: innerSize)
                     } else {
                         TimelineView(.periodic(from: .now, by: interval)) { timeline in
                             let idx = Int(timeline.date.timeIntervalSinceReferenceDate / interval) % items.count
-                            thumbnail(for: items[idx], size: geo.size.width)
+                            thumbnail(for: items[idx], size: innerSize)
                         }
                     }
                 }
+            }
+            .frame(width: geo.size.width, height: geo.size.width)
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(borderColor, lineWidth: 3)
             }
             .overlay(alignment: .topTrailing) {
                 if !items.isEmpty {
@@ -59,7 +70,7 @@ public struct HeroGif: View {
 
     private func thumbnail(for item: Item, size: CGFloat) -> some View {
         PosterThumbnail(assetName: item.assetNames.first, assetNames: item.assetNames,
-                        photos: item.photos, size: size)
+                        photos: item.photos, size: size, contentMode: .fit)
     }
 
     private var pauseButton: some View {
@@ -78,4 +89,9 @@ public struct HeroGif: View {
         .buttonStyle(.plain)
         .padding(8)
     }
+}
+
+public extension Color {
+    /// SphericalWave brand blue — `HeroGif`'s default border color.
+    static let swBlue = Color(red: 0/255, green: 122/255, blue: 255/255)
 }
