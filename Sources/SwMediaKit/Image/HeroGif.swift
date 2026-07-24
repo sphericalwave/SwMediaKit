@@ -39,12 +39,22 @@ public struct HeroGif: View {
         self.showPauseButton = showPauseButton
     }
 
+    private let cornerRadius: CGFloat = 8
+    /// Gap between the image's edge and the border stroke — keeps the
+    /// stroke from overlapping the image's own pixels. Shrinks the inner
+    /// image rather than padding the outer frame, so `HeroGif` still
+    /// reports exactly the size its container gave it.
+    private let borderGap: CGFloat = 4
+    private let borderLineWidth: CGFloat = 3
+
     public var body: some View {
         GeometryReader { geo in
-            content(size: geo.size.width)
+            let innerSize = max(geo.size.width - borderGap * 2, 0)
+            content(size: innerSize)
                 .frame(width: geo.size.width, height: geo.size.width)
+                .background(outerBackground)
                 .overlay(border)
-                .overlay(alignment: .topTrailing) { pauseOverlay }
+                .overlay(alignment: .bottomTrailing) { pauseOverlay }
         }
         .aspectRatio(1, contentMode: .fit)
     }
@@ -68,9 +78,14 @@ public struct HeroGif: View {
                         photos: item.photos, size: size, contentMode: .fit)
     }
 
+    private var outerBackground: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.white)
+    }
+
     private var border: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .stroke(borderColor, lineWidth: 3)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .stroke(borderColor, lineWidth: borderLineWidth)
     }
 
     @ViewBuilder
