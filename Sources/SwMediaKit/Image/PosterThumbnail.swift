@@ -15,17 +15,20 @@ public struct PosterThumbnail: View {
     var photoData: Data?
     var photos: [Data]
     var size: CGFloat
+    var contentMode: ContentMode
 
     @State private var cachedPhotos: [PlatformImage] = []
     @State private var cachedPhoto: PlatformImage? = nil
 
     public init(assetName: String? = nil, assetNames: [String] = [],
-                photoData: Data? = nil, photos: [Data] = [], size: CGFloat = 48) {
+                photoData: Data? = nil, photos: [Data] = [], size: CGFloat = 48,
+                contentMode: ContentMode = .fill) {
         self.assetName = assetName
         self.assetNames = assetNames
         self.photoData = photoData
         self.photos = photos
         self.size = size
+        self.contentMode = contentMode
     }
 
     private var bundleNames: [String] {
@@ -37,19 +40,19 @@ public struct PosterThumbnail: View {
             if bundleNames.count > 1 {
                 TimelineView(.periodic(from: .now, by: 0.333)) { tl in
                     let idx = Int(tl.date.timeIntervalSinceReferenceDate) % bundleNames.count
-                    Image(bundleNames[idx]).resizable().scaledToFill()
+                    Image(bundleNames[idx]).resizable().aspectRatio(contentMode: contentMode)
                 }
             } else if let n = bundleNames.first {
-                Image(n).resizable().scaledToFill()
+                Image(n).resizable().aspectRatio(contentMode: contentMode)
             } else if cachedPhotos.count > 1 {
                 TimelineView(.periodic(from: .now, by: 0.333)) { tl in
                     let idx = Int(tl.date.timeIntervalSinceReferenceDate) % cachedPhotos.count
-                    Image(platformImage: cachedPhotos[idx]).resizable().scaledToFill()
+                    Image(platformImage: cachedPhotos[idx]).resizable().aspectRatio(contentMode: contentMode)
                 }
             } else if let img = cachedPhotos.first {
-                Image(platformImage: img).resizable().scaledToFill()
+                Image(platformImage: img).resizable().aspectRatio(contentMode: contentMode)
             } else if let img = cachedPhoto {
-                Image(platformImage: img).resizable().scaledToFill()
+                Image(platformImage: img).resizable().aspectRatio(contentMode: contentMode)
             } else {
                 Image(systemName: "figure.yoga")
                     .resizable().scaledToFit()
