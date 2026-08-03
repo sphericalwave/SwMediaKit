@@ -117,3 +117,15 @@ public extension Color {
     /// SphericalWave brand blue — `HeroGif`'s default border color.
     static let swBlue = Color(red: 0/255, green: 122/255, blue: 255/255)
 }
+
+#if DEBUG
+#Preview("Cycling items") {
+    HeroGif(items: PreviewSample.many.map { HeroGif.Item(photos: [$0]) }, interval: 1.5)
+        .padding()
+}
+
+#Preview("Single item, no pause") {
+    HeroGif(items: [HeroGif.Item(photos: [PreviewSample.one])], showPauseButton: false)
+        .padding()
+}
+#endif

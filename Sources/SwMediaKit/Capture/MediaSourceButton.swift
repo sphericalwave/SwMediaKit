@@ -106,3 +106,42 @@ public extension MediaSourceButton where Label == SwiftUI.Label<Text, Image> {
         }
     }
 }
+
+#if DEBUG
+private struct MediaSourceButtonPreview: View {
+    @State private var photo: Data?
+
+    var body: some View {
+        Form {
+            Section("Photo") {
+                if let photo, let image = PlatformImage.downsampled(data: photo, maxPixel: 264) {
+                    Image(platformImage: image)
+                        .resizable().scaledToFill()
+                        .frame(width: 88, height: 88)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                // Where there's no camera — previews included — this goes
+                // straight to the library instead of offering a dead row.
+                MediaSourceButton(photo == nil ? "Add Photo" : "Change Photo") { photo = $0 }
+                if photo != nil {
+                    Button("Remove Photo", role: .destructive) { photo = nil }
+                }
+            }
+        }
+    }
+}
+
+#Preview("In a Form") {
+    MediaSourceButtonPreview()
+}
+
+#Preview("Custom label") {
+    MediaSourceButton { _ in } label: {
+        Image(systemName: "camera.fill")
+            .font(.title2)
+            .padding()
+            .background(.tint, in: Circle())
+            .foregroundStyle(.white)
+    }
+}
+#endif

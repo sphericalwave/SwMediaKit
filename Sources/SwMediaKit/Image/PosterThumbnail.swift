@@ -119,3 +119,17 @@ public struct PosterThumbnail: View {
             }
     }
 }
+
+#if DEBUG
+#Preview("Single photo") {
+    PosterThumbnail(photoData: PreviewSample.one, size: 88)
+}
+
+#Preview("Flipbook + border") {
+    PosterThumbnail(photos: PreviewSample.many, size: 88, borderColor: .blue)
+}
+
+#Preview("Fallback") {
+    PosterThumbnail(size: 88)
+}
+#endif

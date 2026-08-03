@@ -66,3 +66,12 @@ public struct CameraPicker: UIViewControllerRepresentable {
     }
 }
 #endif
+
+#if os(iOS) && DEBUG
+// Only renders on a real device — `UIImagePickerController(.camera)` has no
+// simulator or preview-canvas implementation, so the canvas stays black.
+#Preview("Device only") {
+    CameraPicker { _ in }
+        .ignoresSafeArea()
+}
+#endif

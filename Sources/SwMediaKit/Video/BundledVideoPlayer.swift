@@ -66,3 +66,11 @@ public struct BundledVideoPlayer: View {
         if autoplay { p.play() }
     }
 }
+
+#if DEBUG
+// The package bundles no video, so this exercises the missing-resource
+// placeholder — which is the branch worth eyeballing anyway.
+#Preview("Missing resource") {
+    BundledVideoPlayer(resource: "nonexistent")
+}
+#endif
