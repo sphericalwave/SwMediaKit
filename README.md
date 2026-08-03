@@ -1,8 +1,9 @@
 # SwMediaKit
 
-Shared image and video display components for training apps: skill posters
-(bundled or user-photographed), thumbnail flipbooks, and instructional-video
-playback. Cross-platform (iOS/macOS) with no host-app persistence opinion.
+Shared image and video components for training apps: photo capture and picking,
+skill posters (bundled or user-photographed), thumbnail flipbooks, and
+instructional-video playback. Cross-platform (iOS/macOS) with no host-app
+persistence opinion.
 
 ## Requirements
 
@@ -16,6 +17,30 @@ playback. Cross-platform (iOS/macOS) with no host-app persistence opinion.
 ```
 
 ## Overview
+
+### Capture
+
+- `MediaSourceButton` — one "Add Photo" button that offers *Take Photo* /
+  *Choose from Library*, and hands back storage-ready JPEG `Data`. Where no
+  camera exists (simulator, macOS, camera-less devices) it skips the dialog and
+  goes straight to the library, so there is never a dead "Take Photo" row.
+  Both paths run `reencodedForStorage` off the main actor, so a host app can't
+  accidentally persist a full-resolution capture.
+
+  ```swift
+  MediaSourceButton { data in tool.photo = data }
+  ```
+
+- `CameraPicker` — the system camera (`UIImagePickerController(.camera)`)
+  wrapped for SwiftUI, delivering full-resolution JPEG `Data`. iOS only.
+  Prefer `MediaSourceButton`; reach for this directly only if you need the
+  camera without the source dialog.
+
+**Host-app requirement:** the camera path needs `NSCameraUsageDescription` in
+the app's Info.plist — SPM cannot inject it, and the system traps without it.
+Library picking needs no permission key (`PhotosPicker` runs out of process).
+
+### Display
 
 - `PosterGallery` — paged gallery of bundle-named images, with page dots when
   there's more than one.
