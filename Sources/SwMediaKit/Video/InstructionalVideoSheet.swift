@@ -38,3 +38,11 @@ public struct InstructionalVideoSheet: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Sheet chrome") {
+    Color.clear.sheet(isPresented: .constant(true)) {
+        InstructionalVideoSheet(title: "Thoracic Roll", resource: "nonexistent")
+    }
+}
+#endif

@@ -41,3 +41,14 @@ public struct PosterGallery: View {
         }
     }
 }
+
+#if DEBUG
+// PosterGallery is bundle-name-only, and those names resolve against the host
+// app's Bundle.main — which a package preview has no access to. This renders
+// the paging chrome and page dots with placeholder images; drop it into an app
+// target with real asset names to see actual artwork.
+#Preview("Paging chrome") {
+    PosterGallery(names: ["sample-a", "sample-b", "sample-c"], cornerRadius: 12)
+        .padding()
+}
+#endif

@@ -120,3 +120,16 @@ private struct PosterFrame: ViewModifier {
             }
     }
 }
+
+#if DEBUG
+#Preview("Flipbook") {
+    AnimatedPoster(bundleNames: [], photos: PreviewSample.many)
+        .padding()
+}
+
+#Preview("Single photo") {
+    // One photo: no pause button, nothing to cycle through.
+    AnimatedPoster(bundleNames: [], photos: [PreviewSample.one])
+        .padding()
+}
+#endif
