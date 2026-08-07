@@ -31,6 +31,15 @@ persistence opinion.
   MediaSourceButton { data in tool.photo = data }
   ```
 
+  `selectionLimit` controls how many library photos one trip through the
+  picker returns — 1 (the default) dismisses on the first tap, higher keeps
+  the picker up until *Add*, 0 means no limit. `onImage` fires once per
+  photo, in picker order.
+
+  ```swift
+  MediaSourceButton(selectionLimit: 0) { data in tool.photos.append(data) }
+  ```
+
 - `CameraPicker` — the system camera (`UIImagePickerController(.camera)`)
   wrapped for SwiftUI, delivering full-resolution JPEG `Data`. iOS only.
   Prefer `MediaSourceButton`; reach for this directly only if you need the

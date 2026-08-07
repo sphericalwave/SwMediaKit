@@ -18,24 +18,31 @@ import PhotosUI
 public struct MediaSourceButton<Label: View>: View {
     private let maxPixel: CGFloat
     private let quality: CGFloat
+    private let selectionLimit: Int
     private let onImage: (Data) -> Void
     private let label: () -> Label
 
     @State private var showDialog = false
     @State private var showLibrary = false
     @State private var showCamera = false
-    @State private var picked: PhotosPickerItem?
+    @State private var picked: [PhotosPickerItem] = []
 
     /// - Parameters:
     ///   - maxPixel: largest edge, in pixels, of the stored image.
     ///   - quality: JPEG quality of the stored image.
-    ///   - onImage: receives storage-ready JPEG data on the main actor.
+    ///   - selectionLimit: how many library photos one trip through the picker
+    ///     may return. 1 (the default) dismisses on the first tap; higher lets
+    ///     the picker stay up until Add; 0 means no limit.
+    ///   - onImage: receives storage-ready JPEG data on the main actor, once
+    ///     per photo, in the order the picker returned them.
     public init(maxPixel: CGFloat = 1600,
                 quality: CGFloat = 0.82,
+                selectionLimit: Int = 1,
                 onImage: @escaping (Data) -> Void,
                 @ViewBuilder label: @escaping () -> Label) {
         self.maxPixel = maxPixel
         self.quality = quality
+        self.selectionLimit = selectionLimit
         self.onImage = onImage
         self.label = label
     }
@@ -62,13 +69,18 @@ public struct MediaSourceButton<Label: View>: View {
             Button("Choose from Library") { showLibrary = true }
             Button("Cancel", role: .cancel) {}
         }
-        .photosPicker(isPresented: $showLibrary, selection: $picked, matching: .images)
-        .onChange(of: picked) { _, item in
-            guard let item else { return }
+        .photosPicker(isPresented: $showLibrary, selection: $picked,
+                      maxSelectionCount: selectionLimit > 0 ? selectionLimit : nil,
+                      matching: .images)
+        .onChange(of: picked) { _, items in
+            guard !items.isEmpty else { return }
             Task {
-                let raw = try? await item.loadTransferable(type: Data.self)
-                picked = nil
-                if let raw { await deliver(raw) }
+                picked = []
+                for item in items {
+                    if let raw = try? await item.loadTransferable(type: Data.self) {
+                        await deliver(raw)
+                    }
+                }
             }
         }
         #if os(iOS)
@@ -100,8 +112,10 @@ public extension MediaSourceButton where Label == SwiftUI.Label<Text, Image> {
          systemImage: String = "photo.badge.plus",
          maxPixel: CGFloat = 1600,
          quality: CGFloat = 0.82,
+         selectionLimit: Int = 1,
          onImage: @escaping (Data) -> Void) {
-        self.init(maxPixel: maxPixel, quality: quality, onImage: onImage) {
+        self.init(maxPixel: maxPixel, quality: quality,
+                  selectionLimit: selectionLimit, onImage: onImage) {
             SwiftUI.Label(title, systemImage: systemImage)
         }
     }
