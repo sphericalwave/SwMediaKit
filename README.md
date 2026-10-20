@@ -20,15 +20,22 @@ persistence opinion.
 
 ### Capture
 
-- `MediaSourceButton` — one "Add Photo" button that offers *Take Photo* /
-  *Choose from Library*, and hands back storage-ready JPEG `Data`. Where no
-  camera exists (simulator, macOS, camera-less devices) it skips the dialog and
-  goes straight to the library, so there is never a dead "Take Photo" row.
-  Both paths run `reencodedForStorage` off the main actor, so a host app can't
-  accidentally persist a full-resolution capture.
+- `MediaSourceButton` — the one photo button every app uses. On iOS it opens
+  the standard action sheet: *Take Photo* (only where a camera exists),
+  *Choose from Library*, *Remove Photo* (destructive, only when `onRemove` is
+  passed) and *Cancel*. When neither the camera nor Remove applies
+  (simulator, camera-less devices, nothing to remove) it skips the sheet and
+  goes straight to the library. On macOS it's a menu: *Choose from
+  Photos…*, *Choose File…* (any image in Finder) and *Remove Photo*.
+
+  By default it hands back storage-ready JPEG `Data` — both paths run
+  `reencodedForStorage` off the main actor, so a host app can't accidentally
+  persist a full-resolution capture.
 
   ```swift
-  MediaSourceButton { data in tool.photo = data }
+  MediaSourceButton(onRemove: tool.photo == nil ? nil : { tool.photo = nil }) { data in
+      tool.photo = data
+  }
   ```
 
   `selectionLimit` controls how many library photos one trip through the
@@ -39,6 +46,39 @@ persistence opinion.
   ```swift
   MediaSourceButton(selectionLimit: 0) { data in tool.photos.append(data) }
   ```
+
+  **Every photo goes through a crop step by default** (`crop: .square`):
+  pan and pinch it in the frame, then *Use Photo*; a multi-photo pick steps
+  through "Photo 1 of 3" with *Skip*. The crop is cut from the original
+  pixels. `crop: .ratio(4, 3)` locks another aspect, `crop: .free` opens on
+  the photo's own shape with Original / Square / 4:5 / 4:3 / 16:9 to choose
+  from, and `crop: .none` skips the step (scans, OCR).
+
+  ```swift
+  MediaSourceButton(crop: .free) { data in note.photo = data }
+  ```
+
+  `preferredCamera: .front` opens Take Photo on the front camera (selfies);
+  the user can still flip it. Default `.rear`; ignored on macOS.
+
+  Callers with their own crop step, videos or library asset ids take the raw
+  picks instead: `onCapture` gets the camera's full-resolution JPEG once the
+  camera has dismissed (safe to present a crop sheet from) — and, on macOS,
+  each Finder file's data — while `onLibrary` gets
+  the `PhotosPickerItem`s untouched.
+
+  ```swift
+  MediaSourceButton(matching: .any(of: [.images, .videos]), selectionLimit: 0,
+                    onCapture: { cropQueue.append($0) },
+                    onLibrary: { items in Task { await importItems(items) } }) {
+      Label("Add Photo", systemImage: "photo.badge.plus")
+  }
+  ```
+
+- `PhotoCropScreen` / `.photoCropQueue(_:crop:onCropped:)` — the same crop
+  step for raw picks: append photo `Data` to the queue and get each cropped
+  full-resolution JPEG back (skipped ones are dropped). iOS full-screen, macOS
+  sheet.
 
 - `CameraPicker` — the system camera (`UIImagePickerController(.camera)`)
   wrapped for SwiftUI, delivering full-resolution JPEG `Data`. iOS only.
