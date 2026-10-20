@@ -20,15 +20,22 @@ persistence opinion.
 
 ### Capture
 
-- `MediaSourceButton` — one "Add Photo" button that offers *Take Photo* /
-  *Choose from Library*, and hands back storage-ready JPEG `Data`. Where no
-  camera exists (simulator, macOS, camera-less devices) it skips the dialog and
-  goes straight to the library, so there is never a dead "Take Photo" row.
-  Both paths run `reencodedForStorage` off the main actor, so a host app can't
-  accidentally persist a full-resolution capture.
+- `MediaSourceButton` — the one photo button every app uses. On iOS it opens
+  the standard action sheet: *Take Photo* (only where a camera exists),
+  *Choose from Library*, *Remove Photo* (destructive, only when `onRemove` is
+  passed) and *Cancel*. When neither the camera nor Remove applies
+  (simulator, camera-less devices, nothing to remove) it skips the sheet and
+  goes straight to the library. On macOS it opens the library picker
+  directly, with Remove Photo as a row of its own.
+
+  By default it hands back storage-ready JPEG `Data` — both paths run
+  `reencodedForStorage` off the main actor, so a host app can't accidentally
+  persist a full-resolution capture.
 
   ```swift
-  MediaSourceButton { data in tool.photo = data }
+  MediaSourceButton(onRemove: tool.photo == nil ? nil : { tool.photo = nil }) { data in
+      tool.photo = data
+  }
   ```
 
   `selectionLimit` controls how many library photos one trip through the
@@ -38,6 +45,19 @@ persistence opinion.
 
   ```swift
   MediaSourceButton(selectionLimit: 0) { data in tool.photos.append(data) }
+  ```
+
+  Callers with their own crop step, videos or library asset ids take the raw
+  picks instead: `onCapture` gets the camera's full-resolution JPEG once the
+  camera has dismissed (safe to present a crop sheet from), `onLibrary` gets
+  the `PhotosPickerItem`s untouched.
+
+  ```swift
+  MediaSourceButton(matching: .any(of: [.images, .videos]), selectionLimit: 0,
+                    onCapture: { cropQueue.append($0) },
+                    onLibrary: { items in Task { await importItems(items) } }) {
+      Label("Add Photo", systemImage: "photo.badge.plus")
+  }
   ```
 
 - `CameraPicker` — the system camera (`UIImagePickerController(.camera)`)
