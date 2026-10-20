@@ -58,7 +58,7 @@ public struct MediaSourceButton<Label: View>: View {
                 config.deliverCapture(shot)
             }
         }) {
-            CameraPicker { data in
+            CameraPicker(preferredCamera: config.preferredCamera) { data in
                 cameraShot = data
                 showCamera = false
             }

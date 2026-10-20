@@ -20,8 +20,10 @@ public struct CameraPicker: UIViewControllerRepresentable {
     /// Called with the captured photo, or `nil` if the user cancelled.
     /// Delivers full-resolution JPEG data — compress before persisting.
     let onCapture: (Data?) -> Void
+    let preferredCamera: PreferredCamera
 
-    public init(onCapture: @escaping (Data?) -> Void) {
+    public init(preferredCamera: PreferredCamera = .rear, onCapture: @escaping (Data?) -> Void) {
+        self.preferredCamera = preferredCamera
         self.onCapture = onCapture
     }
 
@@ -35,6 +37,9 @@ public struct CameraPicker: UIViewControllerRepresentable {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
         picker.mediaTypes = ["public.image"]
+        if preferredCamera == .front, UIImagePickerController.isCameraDeviceAvailable(.front) {
+            picker.cameraDevice = .front
+        }
         picker.delegate = context.coordinator
         return picker
     }

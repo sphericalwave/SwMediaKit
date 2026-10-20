@@ -47,6 +47,9 @@ persistence opinion.
   MediaSourceButton(selectionLimit: 0) { data in tool.photos.append(data) }
   ```
 
+  `preferredCamera: .front` opens Take Photo on the front camera (selfies);
+  the user can still flip it. Default `.rear`; ignored on macOS.
+
   Callers with their own crop step, videos or library asset ids take the raw
   picks instead: `onCapture` gets the camera's full-resolution JPEG once the
   camera has dismissed (safe to present a crop sheet from), `onLibrary` gets

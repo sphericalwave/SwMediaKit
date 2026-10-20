@@ -24,6 +24,13 @@
 import SwiftUI
 import PhotosUI
 
+/// Which camera Take Photo opens with. The user can still flip it in the
+/// system camera; ignored on macOS.
+public enum PreferredCamera: Sendable {
+    case rear
+    case front
+}
+
 /// How a finished pick reaches the caller.
 enum MediaSourceDelivery {
     /// Shrunk + re-encoded JPEG, one call per photo.
@@ -39,6 +46,7 @@ struct MediaSourceConfig {
     var selectionLimit: Int
     /// Offers Remove Photo when set.
     var onRemove: (() -> Void)?
+    var preferredCamera: PreferredCamera = .rear
     var delivery: MediaSourceDelivery
 
     var maxSelectionCount: Int? { selectionLimit > 0 ? selectionLimit : nil }
@@ -86,18 +94,20 @@ public extension MediaSourceButton {
     ///   - selectionLimit: how many library photos one trip through the picker
     ///     may return. 1 (the default) dismisses on the first tap; higher lets
     ///     the picker stay up until Add; 0 means no limit.
+    ///   - preferredCamera: which camera Take Photo opens with.
     ///   - onRemove: when set, the button also offers Remove Photo.
     ///   - onImage: receives storage-ready JPEG data on the main actor, once
     ///     per photo, in the order the picker returned them.
     init(maxPixel: CGFloat = 1600,
          quality: CGFloat = 0.82,
          selectionLimit: Int = 1,
+         preferredCamera: PreferredCamera = .rear,
          onRemove: (() -> Void)? = nil,
          onImage: @escaping (Data) -> Void,
          @ViewBuilder label: @escaping () -> Label) {
         self.config = MediaSourceConfig(
             matching: .images, selectionLimit: selectionLimit, onRemove: onRemove,
-            delivery: .storage(maxPixel: maxPixel, quality: quality, onImage: onImage))
+            preferredCamera: preferredCamera, delivery: .storage(maxPixel: maxPixel, quality: quality, onImage: onImage))
         self.label = label
     }
 
@@ -111,13 +121,14 @@ public extension MediaSourceButton {
     ///   - onLibrary: the picked library items, in picker order.
     init(matching: PHPickerFilter = .images,
          selectionLimit: Int = 1,
+         preferredCamera: PreferredCamera = .rear,
          onRemove: (() -> Void)? = nil,
          onCapture: @escaping (Data) -> Void,
          onLibrary: @escaping ([PhotosPickerItem]) -> Void,
          @ViewBuilder label: @escaping () -> Label) {
         self.config = MediaSourceConfig(
             matching: matching, selectionLimit: selectionLimit, onRemove: onRemove,
-            delivery: .raw(onCapture: onCapture, onLibrary: onLibrary))
+            preferredCamera: preferredCamera, delivery: .raw(onCapture: onCapture, onLibrary: onLibrary))
         self.label = label
     }
 }
@@ -129,10 +140,11 @@ public extension MediaSourceButton where Label == SwiftUI.Label<Text, Image> {
          maxPixel: CGFloat = 1600,
          quality: CGFloat = 0.82,
          selectionLimit: Int = 1,
+         preferredCamera: PreferredCamera = .rear,
          onRemove: (() -> Void)? = nil,
          onImage: @escaping (Data) -> Void) {
         self.init(maxPixel: maxPixel, quality: quality, selectionLimit: selectionLimit,
-                  onRemove: onRemove, onImage: onImage) {
+                  preferredCamera: preferredCamera, onRemove: onRemove, onImage: onImage) {
             SwiftUI.Label(title, systemImage: systemImage)
         }
     }
