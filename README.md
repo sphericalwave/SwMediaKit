@@ -47,6 +47,17 @@ persistence opinion.
   MediaSourceButton(selectionLimit: 0) { data in tool.photos.append(data) }
   ```
 
+  **Every photo goes through a crop step by default** (`crop: .square`):
+  pan and pinch it in the frame, then *Use Photo*; a multi-photo pick steps
+  through "Photo 1 of 3" with *Skip*. The crop is cut from the original
+  pixels. `crop: .ratio(4, 3)` locks another aspect, `crop: .free` opens on
+  the photo's own shape with Original / Square / 4:5 / 4:3 / 16:9 to choose
+  from, and `crop: .none` skips the step (scans, OCR).
+
+  ```swift
+  MediaSourceButton(crop: .free) { data in note.photo = data }
+  ```
+
   `preferredCamera: .front` opens Take Photo on the front camera (selfies);
   the user can still flip it. Default `.rear`; ignored on macOS.
 
@@ -62,6 +73,11 @@ persistence opinion.
       Label("Add Photo", systemImage: "photo.badge.plus")
   }
   ```
+
+- `PhotoCropScreen` / `.photoCropQueue(_:crop:onCropped:)` — the same crop
+  step for raw picks: append photo `Data` to the queue and get each cropped
+  full-resolution JPEG back (skipped ones are dropped). iOS full-screen, macOS
+  sheet.
 
 - `CameraPicker` — the system camera (`UIImagePickerController(.camera)`)
   wrapped for SwiftUI, delivering full-resolution JPEG `Data`. iOS only.

@@ -15,6 +15,7 @@ public struct MediaSourceButton<Label: View>: View {
     let label: () -> Label
 
     @State private var picked: [PhotosPickerItem] = []
+    @State private var cropQueue: [Data] = []
 
     public var body: some View {
         PhotosPicker(selection: $picked,
@@ -25,8 +26,9 @@ public struct MediaSourceButton<Label: View>: View {
         .onChange(of: picked) { _, items in
             guard !items.isEmpty else { return }
             picked = []
-            config.deliverLibrary(items)
+            config.deliverLibrary(items) { cropQueue += $0 }
         }
+        .photoCropQueue($cropQueue, crop: config.crop, onCropped: config.deliverStored)
         if let onRemove = config.onRemove {
             Button("Remove Photo", role: .destructive, action: onRemove)
         }

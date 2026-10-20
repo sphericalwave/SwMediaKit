@@ -33,9 +33,11 @@ public enum PreferredCamera: Sendable {
 
 /// How a finished pick reaches the caller.
 enum MediaSourceDelivery {
-    /// Shrunk + re-encoded JPEG, one call per photo.
-    case storage(maxPixel: CGFloat, quality: CGFloat, onImage: (Data) -> Void)
-    /// Full-resolution camera JPEG, and library items untouched.
+    /// Cropped (unless `crop` is `.none`), then shrunk + re-encoded JPEG,
+    /// one call per photo.
+    case storage(maxPixel: CGFloat, quality: CGFloat, crop: PhotoCrop, onImage: (Data) -> Void)
+    /// Full-resolution camera JPEG, and library items untouched — no crop
+    /// step (use `photoCropQueue` for one).
     case raw(onCapture: (Data) -> Void, onLibrary: ([PhotosPickerItem]) -> Void)
 }
 
@@ -51,30 +53,46 @@ struct MediaSourceConfig {
 
     var maxSelectionCount: Int? { selectionLimit > 0 ? selectionLimit : nil }
 
+    /// The crop step the view should run picks through.
+    var crop: PhotoCrop {
+        if case let .storage(_, _, crop, _) = delivery { return crop }
+        return .none
+    }
+
     /// Hands back a camera shot. Call once the camera has dismissed — a crop
-    /// sheet presented while it's still on screen gets dropped.
-    @MainActor func deliverCapture(_ data: Data) {
+    /// step presented while it's still on screen gets dropped. `enqueueCrop`
+    /// queues a photo for the view's crop step.
+    @MainActor func deliverCapture(_ data: Data, enqueueCrop: @escaping ([Data]) -> Void) {
         switch delivery {
         case let .raw(onCapture, _):
             onCapture(data)
-        case let .storage(maxPixel, quality, onImage):
+        case .storage:
+            if crop == .none { deliverStored(data) } else { enqueueCrop([data]) }
+        }
+    }
+
+    @MainActor func deliverLibrary(_ items: [PhotosPickerItem], enqueueCrop: @escaping ([Data]) -> Void) {
+        switch delivery {
+        case let .raw(_, onLibrary):
+            onLibrary(items)
+        case .storage:
             Task {
-                onImage(await Self.reencoded(data, maxPixel: maxPixel, quality: quality))
+                var loaded: [Data] = []
+                for item in items {
+                    guard let raw = try? await item.loadTransferable(type: Data.self) else { continue }
+                    loaded.append(raw)
+                }
+                guard !loaded.isEmpty else { return }
+                if crop == .none { loaded.forEach(deliverStored) } else { enqueueCrop(loaded) }
             }
         }
     }
 
-    @MainActor func deliverLibrary(_ items: [PhotosPickerItem]) {
-        switch delivery {
-        case let .raw(_, onLibrary):
-            onLibrary(items)
-        case let .storage(maxPixel, quality, onImage):
-            Task {
-                for item in items {
-                    guard let raw = try? await item.loadTransferable(type: Data.self) else { continue }
-                    onImage(await Self.reencoded(raw, maxPixel: maxPixel, quality: quality))
-                }
-            }
+    /// Shrinks and re-encodes a picked or cropped photo, then hands it back.
+    @MainActor func deliverStored(_ data: Data) {
+        guard case let .storage(maxPixel, quality, _, onImage) = delivery else { return }
+        Task {
+            onImage(await Self.reencoded(data, maxPixel: maxPixel, quality: quality))
         }
     }
 
@@ -94,6 +112,9 @@ public extension MediaSourceButton {
     ///   - selectionLimit: how many library photos one trip through the picker
     ///     may return. 1 (the default) dismisses on the first tap; higher lets
     ///     the picker stay up until Add; 0 means no limit.
+    ///   - crop: the crop step each photo goes through before `onImage` —
+    ///     square by default; `.none` for scans/OCR where the whole frame
+    ///     matters.
     ///   - preferredCamera: which camera Take Photo opens with.
     ///   - onRemove: when set, the button also offers Remove Photo.
     ///   - onImage: receives storage-ready JPEG data on the main actor, once
@@ -101,13 +122,14 @@ public extension MediaSourceButton {
     init(maxPixel: CGFloat = 1600,
          quality: CGFloat = 0.82,
          selectionLimit: Int = 1,
+         crop: PhotoCrop = .square,
          preferredCamera: PreferredCamera = .rear,
          onRemove: (() -> Void)? = nil,
          onImage: @escaping (Data) -> Void,
          @ViewBuilder label: @escaping () -> Label) {
         self.config = MediaSourceConfig(
             matching: .images, selectionLimit: selectionLimit, onRemove: onRemove,
-            preferredCamera: preferredCamera, delivery: .storage(maxPixel: maxPixel, quality: quality, onImage: onImage))
+            preferredCamera: preferredCamera, delivery: .storage(maxPixel: maxPixel, quality: quality, crop: crop, onImage: onImage))
         self.label = label
     }
 
@@ -140,11 +162,12 @@ public extension MediaSourceButton where Label == SwiftUI.Label<Text, Image> {
          maxPixel: CGFloat = 1600,
          quality: CGFloat = 0.82,
          selectionLimit: Int = 1,
+         crop: PhotoCrop = .square,
          preferredCamera: PreferredCamera = .rear,
          onRemove: (() -> Void)? = nil,
          onImage: @escaping (Data) -> Void) {
         self.init(maxPixel: maxPixel, quality: quality, selectionLimit: selectionLimit,
-                  preferredCamera: preferredCamera, onRemove: onRemove, onImage: onImage) {
+                  crop: crop, preferredCamera: preferredCamera, onRemove: onRemove, onImage: onImage) {
             SwiftUI.Label(title, systemImage: systemImage)
         }
     }

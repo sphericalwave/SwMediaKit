@@ -21,6 +21,7 @@ public struct MediaSourceButton<Label: View>: View {
     @State private var showCamera = false
     @State private var cameraShot: Data?
     @State private var picked: [PhotosPickerItem] = []
+    @State private var cropQueue: [Data] = []
 
     public var body: some View {
         Button {
@@ -48,14 +49,14 @@ public struct MediaSourceButton<Label: View>: View {
         .onChange(of: picked) { _, items in
             guard !items.isEmpty else { return }
             picked = []
-            config.deliverLibrary(items)
+            config.deliverLibrary(items) { cropQueue += $0 }
         }
         // The shot goes out only once the camera is gone — a crop presented
         // while it's still dismissing gets dropped.
         .fullScreenCover(isPresented: $showCamera, onDismiss: {
             if let shot = cameraShot {
                 cameraShot = nil
-                config.deliverCapture(shot)
+                config.deliverCapture(shot) { cropQueue += $0 }
             }
         }) {
             CameraPicker(preferredCamera: config.preferredCamera) { data in
@@ -64,6 +65,7 @@ public struct MediaSourceButton<Label: View>: View {
             }
             .ignoresSafeArea()
         }
+        .photoCropQueue($cropQueue, crop: config.crop, onCropped: config.deliverStored)
     }
 }
 #endif
