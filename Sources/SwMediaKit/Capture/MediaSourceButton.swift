@@ -5,7 +5,7 @@
 //  The one "attach a photo" button every app uses. The view itself is
 //  platform-owned — `iOS/MediaSourceButton+iOS.swift` (Take Photo / Choose
 //  from Library / Remove Photo / Cancel dialog) and
-//  `macOS/MediaSourceButton+macOS.swift` (library picker + Remove row). This
+//  `macOS/MediaSourceButton+macOS.swift` (menu: Photos, Finder file, Remove). This
 //  file holds what both share: the public initializers and how a pick is
 //  handed back.
 //
@@ -36,7 +36,7 @@ enum MediaSourceDelivery {
     /// Cropped (unless `crop` is `.none`), then shrunk + re-encoded JPEG,
     /// one call per photo.
     case storage(maxPixel: CGFloat, quality: CGFloat, crop: PhotoCrop, onImage: (Data) -> Void)
-    /// Full-resolution camera JPEG, and library items untouched — no crop
+    /// Full-resolution camera JPEG / Finder file, and library items untouched — no crop
     /// step (use `photoCropQueue` for one).
     case raw(onCapture: (Data) -> Void, onLibrary: ([PhotosPickerItem]) -> Void)
 }
@@ -138,8 +138,9 @@ public extension MediaSourceButton {
     /// - Parameters:
     ///   - matching: what the library offers (`.images`, or images + videos).
     ///     The camera always takes stills.
-    ///   - onCapture: the camera's full-resolution JPEG, once the camera has
-    ///     gone. Never called on macOS.
+    ///   - onCapture: a full-resolution still from outside the Photos library
+    ///     — the camera's JPEG on iOS (once the camera has gone), a Finder
+    ///     file's data on macOS (Choose File…).
     ///   - onLibrary: the picked library items, in picker order.
     init(matching: PHPickerFilter = .images,
          selectionLimit: Int = 1,

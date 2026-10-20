@@ -25,8 +25,8 @@ persistence opinion.
   *Choose from Library*, *Remove Photo* (destructive, only when `onRemove` is
   passed) and *Cancel*. When neither the camera nor Remove applies
   (simulator, camera-less devices, nothing to remove) it skips the sheet and
-  goes straight to the library. On macOS it opens the library picker
-  directly, with Remove Photo as a row of its own.
+  goes straight to the library. On macOS it's a menu: *Choose from
+  Photos…*, *Choose File…* (any image in Finder) and *Remove Photo*.
 
   By default it hands back storage-ready JPEG `Data` — both paths run
   `reencodedForStorage` off the main actor, so a host app can't accidentally
@@ -63,7 +63,8 @@ persistence opinion.
 
   Callers with their own crop step, videos or library asset ids take the raw
   picks instead: `onCapture` gets the camera's full-resolution JPEG once the
-  camera has dismissed (safe to present a crop sheet from), `onLibrary` gets
+  camera has dismissed (safe to present a crop sheet from) — and, on macOS,
+  each Finder file's data — while `onLibrary` gets
   the `PhotosPickerItem`s untouched.
 
   ```swift
