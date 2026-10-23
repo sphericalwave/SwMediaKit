@@ -58,6 +58,21 @@ persistence opinion.
   MediaSourceButton(crop: .free) { data in note.photo = data }
   ```
 
+  **Take Photo is square by default** (`squareCamera: true`): a live
+  viewfinder with the frame cut out of a dimmed preview, the shot cut to
+  that frame at full resolution, then a review where a pinch/drag tightens
+  the crop before *Use Photo* (*Retake* goes back). Camera shots therefore
+  skip the separate crop step. The frame follows `crop` — `.ratio(4, 3)`
+  frames 4:3, `.free` frames square, `.none` keeps the full-frame system
+  camera. `squareCamera: false` opts out (scans, screenshots of text). The
+  raw init takes the same flag; its `onCapture` then gets a square shot.
+
+  ```swift
+  MediaSourceButton(squareCamera: false, onCapture: { shots.append($0) }, onLibrary: { picked = $0 }) {
+      Label("Choose Screenshots", systemImage: "photo.on.rectangle")
+  }
+  ```
+
   `preferredCamera: .front` opens Take Photo on the front camera (selfies);
   the user can still flip it. Default `.rear`; ignored on macOS.
 

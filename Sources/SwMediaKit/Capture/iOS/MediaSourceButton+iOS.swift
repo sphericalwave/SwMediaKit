@@ -5,7 +5,8 @@
 //  iOS half: the standard photo action sheet — Take Photo, Choose from
 //  Library, Remove Photo, Cancel. Rows that can't apply are left out (no
 //  camera, nothing to remove); with only the library left it goes straight
-//  there.
+//  there. Take Photo opens `FramedCamera` (square viewfinder, shot already
+//  cropped) unless the config asks for the full-frame system camera.
 //
 
 #if os(iOS)
@@ -20,6 +21,8 @@ public struct MediaSourceButton<Label: View>: View {
     @State private var showLibrary = false
     @State private var showCamera = false
     @State private var cameraShot: Data?
+    /// Whether `cameraShot` came from the framed camera, already cropped.
+    @State private var cameraShotFramed = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var cropQueue: [Data] = []
 
@@ -56,14 +59,23 @@ public struct MediaSourceButton<Label: View>: View {
         .fullScreenCover(isPresented: $showCamera, onDismiss: {
             if let shot = cameraShot {
                 cameraShot = nil
-                config.deliverCapture(shot) { cropQueue += $0 }
+                config.deliverCapture(shot, framed: cameraShotFramed) { cropQueue += $0 }
             }
         }) {
-            CameraPicker(preferredCamera: config.preferredCamera) { data in
-                cameraShot = data
-                showCamera = false
+            if let frame = config.cameraFrame {
+                FramedCamera(shape: frame, preferredCamera: config.preferredCamera) { data in
+                    cameraShot = data
+                    cameraShotFramed = true
+                    showCamera = false
+                }
+            } else {
+                CameraPicker(preferredCamera: config.preferredCamera) { data in
+                    cameraShot = data
+                    cameraShotFramed = false
+                    showCamera = false
+                }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         }
         .photoCropQueue($cropQueue, crop: config.crop, onCropped: config.deliverStored)
     }
