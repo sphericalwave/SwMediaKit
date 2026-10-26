@@ -76,6 +76,16 @@ persistence opinion.
   `preferredCamera: .front` opens Take Photo on the front camera (selfies);
   the user can still flip it. Default `.rear`; ignored on macOS.
 
+  The framed camera shows the phone's rear lenses as Camera-app zoom
+  buttons above the shutter — *.5* / *1×*, plus *2×*/*3×*… where there's a
+  telephoto (VoiceOver: "0.5 times"). It opens on the lens last picked in
+  that app; before any pick, on `preferredLens` (default `.wide`, i.e. 1×).
+  A lens the phone lacks falls back to 1× silently.
+
+  ```swift
+  MediaSourceButton(preferredLens: .ultraWide) { data in item.photo = data }
+  ```
+
   Callers with their own crop step, videos or library asset ids take the raw
   picks instead: `onCapture` gets the camera's full-resolution JPEG once the
   camera has dismissed (safe to present a crop sheet from) — and, on macOS,

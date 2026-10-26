@@ -63,7 +63,8 @@ public struct MediaSourceButton<Label: View>: View {
             }
         }) {
             if let frame = config.cameraFrame {
-                FramedCamera(shape: frame, preferredCamera: config.preferredCamera) { data in
+                FramedCamera(shape: frame, preferredCamera: config.preferredCamera,
+                             preferredLens: config.preferredLens) { data in
                     cameraShot = data
                     cameraShotFramed = true
                     showCamera = false
