@@ -49,6 +49,7 @@ struct MediaSourceConfig {
     /// Offers Remove Photo when set.
     var onRemove: (() -> Void)?
     var preferredCamera: PreferredCamera = .rear
+    var preferredLens: CameraLens = .wide
     /// Take Photo opens the framed camera (see `cameraFrame`) rather than
     /// the system one.
     var squareCamera: Bool = true
@@ -139,6 +140,9 @@ public extension MediaSourceButton {
     ///     square by default; `.none` for scans/OCR where the whole frame
     ///     matters.
     ///   - preferredCamera: which camera Take Photo opens with.
+    ///   - preferredLens: the rear lens the framed camera opens on until the
+    ///     user picks one from its .5 / 1× / 2× buttons; after that it opens
+    ///     on their last pick. Falls back to 1× on phones without it.
     ///   - squareCamera: Take Photo shows a live viewfinder framed to the
     ///     crop (square by default) with the outside dimmed, takes the photo
     ///     already cut to that frame, and offers a pinch to tighten it before
@@ -153,13 +157,14 @@ public extension MediaSourceButton {
          selectionLimit: Int = 1,
          crop: PhotoCrop = .square,
          preferredCamera: PreferredCamera = .rear,
+         preferredLens: CameraLens = .wide,
          squareCamera: Bool = true,
          onRemove: (() -> Void)? = nil,
          onImage: @escaping (Data) -> Void,
          @ViewBuilder label: @escaping () -> Label) {
         self.config = MediaSourceConfig(
             matching: .images, selectionLimit: selectionLimit, onRemove: onRemove,
-            preferredCamera: preferredCamera, squareCamera: squareCamera,
+            preferredCamera: preferredCamera, preferredLens: preferredLens, squareCamera: squareCamera,
             delivery: .storage(maxPixel: maxPixel, quality: quality, crop: crop, onImage: onImage))
         self.label = label
     }
@@ -175,10 +180,12 @@ public extension MediaSourceButton {
     ///   - squareCamera: Take Photo shows the square framed camera, so
     ///     `onCapture` gets a square shot; `false` for the full-frame system
     ///     camera (scans, screenshots of text). Ignored on macOS.
+    ///   - preferredLens: as for the storage init.
     ///   - onLibrary: the picked library items, in picker order.
     init(matching: PHPickerFilter = .images,
          selectionLimit: Int = 1,
          preferredCamera: PreferredCamera = .rear,
+         preferredLens: CameraLens = .wide,
          squareCamera: Bool = true,
          onRemove: (() -> Void)? = nil,
          onCapture: @escaping (Data) -> Void,
@@ -186,7 +193,7 @@ public extension MediaSourceButton {
          @ViewBuilder label: @escaping () -> Label) {
         self.config = MediaSourceConfig(
             matching: matching, selectionLimit: selectionLimit, onRemove: onRemove,
-            preferredCamera: preferredCamera, squareCamera: squareCamera,
+            preferredCamera: preferredCamera, preferredLens: preferredLens, squareCamera: squareCamera,
             delivery: .raw(onCapture: onCapture, onLibrary: onLibrary))
         self.label = label
     }
@@ -201,11 +208,13 @@ public extension MediaSourceButton where Label == SwiftUI.Label<Text, Image> {
          selectionLimit: Int = 1,
          crop: PhotoCrop = .square,
          preferredCamera: PreferredCamera = .rear,
+         preferredLens: CameraLens = .wide,
          squareCamera: Bool = true,
          onRemove: (() -> Void)? = nil,
          onImage: @escaping (Data) -> Void) {
         self.init(maxPixel: maxPixel, quality: quality, selectionLimit: selectionLimit,
-                  crop: crop, preferredCamera: preferredCamera, squareCamera: squareCamera,
+                  crop: crop, preferredCamera: preferredCamera, preferredLens: preferredLens,
+                  squareCamera: squareCamera,
                   onRemove: onRemove, onImage: onImage) {
             SwiftUI.Label(title, systemImage: systemImage)
         }

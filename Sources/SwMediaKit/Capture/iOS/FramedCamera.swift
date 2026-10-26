@@ -7,6 +7,8 @@
 //  preview, so what's inside the frame is the photo. The shot is cut to the
 //  frame straight away, then shown for review — pinch and drag tighten the
 //  crop, Retake goes back, Use Photo hands it over. No separate crop screen.
+//  Rear lenses show as Camera-app zoom buttons (.5 / 1× / 2×) above the
+//  shutter; it opens on the last one used (see `CameraLensSet.initial`).
 //
 //  Built on `AVCaptureSession` because `UIImagePickerController` can't frame
 //  its viewfinder or its output.
@@ -19,6 +21,7 @@ import AVFoundation
 struct FramedCamera: View {
     let shape: CropShape
     let preferredCamera: PreferredCamera
+    var preferredLens: CameraLens = .wide
     /// The framed JPEG at full resolution, or nil when cancelled.
     let onFinish: (Data?) -> Void
 
@@ -41,7 +44,7 @@ struct FramedCamera: View {
         }
         .environment(\.colorScheme, .dark)
         .statusBarHidden()
-        .task { await camera.start(position: preferredCamera == .front ? .front : .back) }
+        .task { await camera.start(position: preferredCamera == .front ? .front : .back, preferredLens: preferredLens) }
         .onDisappear { camera.stop() }
     }
 
@@ -49,14 +52,18 @@ struct FramedCamera: View {
         GeometryReader { geo in
             let size = geo.size
             let insets = geo.safeAreaInsets
-            // Clear of the close button above and the shutter below.
+            // Clear of the close button above and the shutter (and lens
+            // buttons) below.
+            let bottom: CGFloat = camera.lenses.offersChoice ? 200 : 140
             let area = CGRect(x: 0, y: insets.top + 64,
                               width: size.width,
-                              height: max(0, size.height - insets.top - insets.bottom - 64 - 140))
+                              height: max(0, size.height - insets.top - insets.bottom - 64 - bottom))
             let frame = CameraFraming.viewfinder(aspect: shape.aspect(for: .zero), in: area, margin: 12)
             ZStack {
                 if camera.state == .running {
-                    CameraPreview(session: camera.session)
+                    CameraPreview(session: camera.session, deviceID: camera.deviceID)
+                        .blur(radius: camera.switching ? 16 : 0)
+                        .animation(.easeInOut(duration: 0.2), value: camera.switching)
                     Path { path in
                         path.addRect(CGRect(origin: .zero, size: size))
                         path.addRect(frame)
@@ -122,6 +129,14 @@ struct FramedCamera: View {
 
             Spacer()
 
+            if camera.lenses.offersChoice {
+                lensButtons
+                    .opacity(camera.lens == nil ? 0 : 1)
+                    .allowsHitTesting(camera.lens != nil)
+                    .accessibilityHidden(camera.lens == nil)
+                    .padding(.bottom, 16)
+            }
+
             ZStack {
                 Button { shoot(frame: frame, previewSize: previewSize) } label: {
                     ZStack {
@@ -135,20 +150,48 @@ struct FramedCamera: View {
 
                 HStack {
                     Spacer()
-                    Button { camera.flip() } label: {
+                    Button { Task { await camera.flip() } } label: {
                         Image(systemName: "arrow.triangle.2.circlepath.camera")
                             .font(.title2)
                             .frame(width: 52, height: 52)
                             .background(.black.opacity(0.4), in: Circle())
                     }
                     .accessibilityLabel("Switch Camera")
-                    .disabled(camera.state != .running || processing || !camera.canFlip)
+                    .disabled(camera.state != .running || processing || camera.switching || !camera.canFlip)
                 }
                 .padding(.horizontal, 28)
             }
             .padding(.bottom, insets.bottom + 28)
         }
         .foregroundStyle(.white)
+    }
+
+    /// The Camera app's zoom row: small round buttons on a dark capsule, the
+    /// current lens larger and yellow. Hidden (space kept) on the front camera.
+    private var lensButtons: some View {
+        HStack(spacing: 2) {
+            ForEach(camera.lenses.lenses, id: \.self) { lens in
+                let selected = lens == camera.lens
+                Button { Task { await camera.select(lens) } } label: {
+                    Text(camera.lenses.title(of: lens, selected: selected))
+                        .font(.system(size: selected ? 13 : 12, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(selected ? .yellow : .white)
+                        .frame(width: selected ? 38 : 30, height: selected ? 38 : 30)
+                        .background(.black.opacity(0.5), in: Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(camera.lenses.accessibilityLabel(of: lens))
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 4)
+        .background(.black.opacity(0.25), in: Capsule())
+        .animation(.snappy(duration: 0.2), value: camera.lens)
+        .disabled(camera.state != .running || processing || camera.switching)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Lens")
     }
 
     private func shoot(frame: CGRect, previewSize: CGSize) {
@@ -236,14 +279,31 @@ final class FramedCameraSession: NSObject {
 
     private(set) var state: State = .starting
     private(set) var canFlip = false
+    /// The rear lenses on offer; empty until `start`.
+    private(set) var lenses = CameraLensSet(available: [])
+    /// True while the camera changes lens or side.
+    private(set) var switching = false
     let session = AVCaptureSession()
     private let output = AVCapturePhotoOutput()
     private var input: AVCaptureDeviceInput?
+    private var rearDevices: [CameraLens: AVCaptureDevice] = [:]
+    /// The rear lens to come back to from the front camera.
+    private var rearLens: CameraLens?
+    private let lensMemory = CameraLensMemory()
     private var pending: CheckedContinuation<Data?, Never>?
     /// Session work stays off the main thread; `startRunning` blocks.
     private let queue = DispatchQueue(label: "SwMediaKit.FramedCamera")
 
-    func start(position: AVCaptureDevice.Position) async {
+    /// The rear lens in use; nil on the front camera.
+    var lens: CameraLens? {
+        guard let device = input?.device, device.position == .back else { return nil }
+        return CameraLens(device.deviceType)
+    }
+
+    /// Changes whenever the camera does, so the preview can re-orient.
+    var deviceID: String? { input?.device.uniqueID }
+
+    func start(position: AVCaptureDevice.Position, preferredLens: CameraLens) async {
         var allowed = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
             allowed = await AVCaptureDevice.requestAccess(for: .video)
@@ -252,8 +312,12 @@ final class FramedCameraSession: NSObject {
             state = .denied
             return
         }
-        guard let device = Self.device(at: position) ?? Self.device(at: .back),
-              let input = try? AVCaptureDeviceInput(device: device) else {
+        (rearDevices, lenses) = Self.rearLenses()
+        rearLens = lenses.initial(remembered: lensMemory.lens, preferred: preferredLens)
+        let lensDevice = position == .back ? rearLens.flatMap { rearDevices[$0] } : nil
+        // A lens that won't open falls back to 1×, without a word.
+        guard let input = lensDevice.flatMap({ try? AVCaptureDeviceInput(device: $0) })
+                ?? (Self.device(at: position) ?? Self.device(at: .back)).flatMap({ try? AVCaptureDeviceInput(device: $0) }) else {
             state = .unavailable
             return
         }
@@ -274,19 +338,42 @@ final class FramedCameraSession: NSObject {
         finish(nil)
     }
 
-    func flip() {
+    func flip() async {
         guard let current = input else { return }
-        let next: AVCaptureDevice.Position = current.device.position == .front ? .back : .front
-        guard let device = Self.device(at: next), let newInput = try? AVCaptureDeviceInput(device: device) else { return }
-        session.beginConfiguration()
-        session.removeInput(current)
-        if session.canAddInput(newInput) {
-            session.addInput(newInput)
-            input = newInput
-        } else {
-            session.addInput(current)
+        let next = current.device.position == .front
+            ? rearLens.flatMap { rearDevices[$0] } ?? Self.device(at: .back)
+            : Self.device(at: .front)
+        guard let next else { return }
+        await switchInput(to: next)
+    }
+
+    /// Switches to `lens` and remembers it for next time.
+    func select(_ lens: CameraLens) async {
+        guard lens != self.lens, let device = rearDevices[lens] else { return }
+        if await switchInput(to: device) {
+            rearLens = lens
+            lensMemory.lens = lens
         }
-        session.commitConfiguration()
+    }
+
+    /// Swaps the camera on the session queue, keeping the old one if the new
+    /// one won't go in. True when it switched.
+    @discardableResult
+    private func switchInput(to device: AVCaptureDevice) async -> Bool {
+        guard let current = input, !switching,
+              let newInput = try? AVCaptureDeviceInput(device: device) else { return false }
+        switching = true
+        let switched = await run { session in
+            session.beginConfiguration()
+            session.removeInput(current)
+            let fits = session.canAddInput(newInput)
+            session.addInput(fits ? newInput : current)
+            session.commitConfiguration()
+            return fits
+        }
+        if switched { input = newInput }
+        switching = false
+        return switched
     }
 
     /// A full-resolution still, upright for a portrait-held phone; nil on failure.
@@ -306,14 +393,34 @@ final class FramedCameraSession: NSObject {
         pending = nil
     }
 
-    private func run(_ work: @escaping (AVCaptureSession) -> Void) async {
+    private func run<T>(_ work: @escaping (AVCaptureSession) -> T) async -> T {
         let session = session
-        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+        return await withCheckedContinuation { (done: CheckedContinuation<T, Never>) in
             queue.async {
-                work(session)
-                done.resume()
+                done.resume(returning: work(session))
             }
         }
+    }
+
+    /// Every rear lens by kind, and the set the buttons offer. The virtual
+    /// cameras are only asked for so the telephoto's zoom can be read off
+    /// their switch-over factors.
+    private static func rearLenses() -> ([CameraLens: AVCaptureDevice], CameraLensSet) {
+        let found = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera, .builtInTelephotoCamera,
+                          .builtInTripleCamera, .builtInDualCamera],
+            mediaType: .video, position: .back).devices
+        var devices: [CameraLens: AVCaptureDevice] = [:]
+        for device in found {
+            if let lens = CameraLens(device.deviceType), devices[lens] == nil { devices[lens] = device }
+        }
+        func switchOvers(_ type: AVCaptureDevice.DeviceType) -> [CGFloat]? {
+            found.first { $0.deviceType == type }?
+                .virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat(truncating: $0) }
+        }
+        let zoom = CameraLensSet.telephotoZoom(triple: switchOvers(.builtInTripleCamera),
+                                               dual: switchOvers(.builtInDualCamera))
+        return (devices, CameraLensSet(available: Array(devices.keys), telephotoZoom: zoom))
     }
 
     private static func device(at position: AVCaptureDevice.Position) -> AVCaptureDevice? {
@@ -332,22 +439,42 @@ extension FramedCameraSession: AVCapturePhotoCaptureDelegate {
 /// The live feed, aspect-filled — the mapping `CameraFraming.pixelRect` assumes.
 private struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    /// The camera feeding it; a new one gets a new, unrotated connection.
+    let deviceID: String?
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.previewLayer?.session = session
         view.previewLayer?.videoGravity = .resizeAspectFill
-        if let connection = view.previewLayer?.connection, connection.isVideoRotationAngleSupported(90) {
-            connection.videoRotationAngle = 90
-        }
+        view.upright()
         return view
     }
 
-    func updateUIView(_ view: PreviewView, context: Context) {}
+    func updateUIView(_ view: PreviewView, context: Context) {
+        view.upright()
+    }
 
     final class PreviewView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var previewLayer: AVCaptureVideoPreviewLayer? { layer as? AVCaptureVideoPreviewLayer }
+
+        /// Portrait, the way the phone is held.
+        func upright() {
+            if let connection = previewLayer?.connection, connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90
+            }
+        }
+    }
+}
+
+extension CameraLens {
+    init?(_ type: AVCaptureDevice.DeviceType) {
+        switch type {
+        case .builtInUltraWideCamera: self = .ultraWide
+        case .builtInWideAngleCamera: self = .wide
+        case .builtInTelephotoCamera: self = .telephoto
+        default: return nil
+        }
     }
 }
 
