@@ -33,7 +33,7 @@ public struct MediaSourceButton<Label: View>: View {
 
     public var body: some View {
         Button {
-            if CameraPicker.isAvailable || config.onRemove != nil {
+            if CameraPicker.isAvailable || config.onRemove != nil || config.onEdit != nil {
                 showDialog = true
             } else {
                 showLibrary = true
@@ -42,6 +42,9 @@ public struct MediaSourceButton<Label: View>: View {
             label()
         }
         .confirmationDialog("Photo", isPresented: $showDialog, titleVisibility: .hidden) {
+            if let onEdit = config.onEdit {
+                Button("Edit Photo…", action: onEdit)
+            }
             if CameraPicker.isAvailable {
                 Button("Take Photo") { showCamera = true }
             }
