@@ -56,7 +56,7 @@ public struct MediaSourceButton<Label: View>: View {
             picked = []
             config.deliverLibrary(items) { cropQueue += $0 }
             if deleteOriginals?.wrappedValue == true {
-                Task { await Self.deleteFromPhotos(items) }
+                Task { await PhotosOriginals.delete(items) }
             }
         }
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image],
@@ -88,28 +88,6 @@ public struct MediaSourceButton<Label: View>: View {
                 return data
             }
         }.value
-    }
-
-    /// Moves picked Photos items to Recently Deleted. Only items whose data
-    /// loads are deleted, so a pick that couldn't be imported is kept. Photos
-    /// shows its own confirmation; declining it, or declining library access
-    /// (the host needs `NSPhotoLibraryUsageDescription` and, sandboxed, the
-    /// photos-library entitlement), keeps everything.
-    private static func deleteFromPhotos(_ items: [PhotosPickerItem]) async {
-        var ids: [String] = []
-        for item in items {
-            guard let id = item.itemIdentifier,
-                  (try? await item.loadTransferable(type: Data.self)) != nil else { continue }
-            ids.append(id)
-        }
-        guard !ids.isEmpty else { return }
-        let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-        guard status == .authorized || status == .limited else { return }
-        let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
-        guard assets.count > 0 else { return }
-        try? await PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.deleteAssets(assets)
-        }
     }
 }
 #endif

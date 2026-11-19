@@ -199,6 +199,30 @@ public extension MediaSourceButton {
     }
 }
 
+enum PhotosOriginals {
+    /// Moves picked Photos items to Recently Deleted. Only items whose data
+    /// loads are deleted, so a pick that couldn't be imported is kept. Photos
+    /// shows its own confirmation; declining it, or declining library access
+    /// (the host needs `NSPhotoLibraryUsageDescription` and, sandboxed, the
+    /// photos-library entitlement), keeps everything.
+    @MainActor static func delete(_ items: [PhotosPickerItem]) async {
+        var ids: [String] = []
+        for item in items {
+            guard let id = item.itemIdentifier,
+                  (try? await item.loadTransferable(type: Data.self)) != nil else { continue }
+            ids.append(id)
+        }
+        guard !ids.isEmpty else { return }
+        let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+        guard status == .authorized || status == .limited else { return }
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        guard assets.count > 0 else { return }
+        try? await PHPhotoLibrary.shared().performChanges {
+            PHAssetChangeRequest.deleteAssets(assets)
+        }
+    }
+}
+
 private struct DeleteOriginalsAfterImportKey: EnvironmentKey {
     static let defaultValue: Binding<Bool>? = nil
 }
@@ -211,11 +235,13 @@ extension EnvironmentValues {
 }
 
 public extension View {
-    /// macOS: adds a "Delete Original After Import" checkmark to every
-    /// `MediaSourceButton` menu inside, bound to `isOn` (store it with
-    /// `@AppStorage` to remember it). While on, an imported Finder file moves
-    /// to the Trash and a Photos pick to Recently Deleted. Off by default, and
-    /// ignored on iOS.
+    /// While `isOn`, every `MediaSourceButton` inside moves the original of
+    /// what it imports out of the way: a Photos pick to Recently Deleted
+    /// (both platforms) and, on macOS, a Finder file to the Trash. Store it
+    /// with `@AppStorage` to remember it. On macOS the menu shows it as a
+    /// "Delete Original After Import" checkmark; the iOS action sheet can't
+    /// hold a toggle, so iOS hosts offer it elsewhere (e.g. Settings) and the
+    /// sheet notes it while on. Off by default.
     func deleteOriginalsAfterImport(_ isOn: Binding<Bool>) -> some View {
         environment(\.deleteOriginalsAfterImport, isOn)
     }
