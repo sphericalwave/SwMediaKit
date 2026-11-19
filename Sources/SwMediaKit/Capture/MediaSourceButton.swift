@@ -48,6 +48,8 @@ struct MediaSourceConfig {
     var selectionLimit: Int
     /// Offers Remove Photo when set.
     var onRemove: (() -> Void)?
+    /// Offers Edit Photo…, first, when set (e.g. re-crop the current photo).
+    var onEdit: (() -> Void)?
     var preferredCamera: PreferredCamera = .rear
     var preferredLens: CameraLens = .wide
     /// Take Photo opens the framed camera (see `cameraFrame`) rather than
@@ -150,6 +152,8 @@ public extension MediaSourceButton {
     ///     opens the full-frame system camera. Ignored on macOS and when
     ///     `crop` is `.none`.
     ///   - onRemove: when set, the button also offers Remove Photo.
+    ///   - onEdit: when set, the button offers Edit Photo… first — for
+    ///     re-cropping or otherwise editing the photo already there.
     ///   - onImage: receives storage-ready JPEG data on the main actor, once
     ///     per photo, in the order the picker returned them.
     init(maxPixel: CGFloat = 1600,
@@ -160,10 +164,11 @@ public extension MediaSourceButton {
          preferredLens: CameraLens = .wide,
          squareCamera: Bool = true,
          onRemove: (() -> Void)? = nil,
+         onEdit: (() -> Void)? = nil,
          onImage: @escaping (Data) -> Void,
          @ViewBuilder label: @escaping () -> Label) {
         self.config = MediaSourceConfig(
-            matching: .images, selectionLimit: selectionLimit, onRemove: onRemove,
+            matching: .images, selectionLimit: selectionLimit, onRemove: onRemove, onEdit: onEdit,
             preferredCamera: preferredCamera, preferredLens: preferredLens, squareCamera: squareCamera,
             delivery: .storage(maxPixel: maxPixel, quality: quality, crop: crop, onImage: onImage))
         self.label = label
@@ -188,11 +193,12 @@ public extension MediaSourceButton {
          preferredLens: CameraLens = .wide,
          squareCamera: Bool = true,
          onRemove: (() -> Void)? = nil,
+         onEdit: (() -> Void)? = nil,
          onCapture: @escaping (Data) -> Void,
          onLibrary: @escaping ([PhotosPickerItem]) -> Void,
          @ViewBuilder label: @escaping () -> Label) {
         self.config = MediaSourceConfig(
-            matching: matching, selectionLimit: selectionLimit, onRemove: onRemove,
+            matching: matching, selectionLimit: selectionLimit, onRemove: onRemove, onEdit: onEdit,
             preferredCamera: preferredCamera, preferredLens: preferredLens, squareCamera: squareCamera,
             delivery: .raw(onCapture: onCapture, onLibrary: onLibrary))
         self.label = label

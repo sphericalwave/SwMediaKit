@@ -31,6 +31,10 @@ public struct MediaSourceButton<Label: View>: View {
 
     public var body: some View {
         Menu {
+            if let onEdit = config.onEdit {
+                Button("Edit Photo…", action: onEdit)
+                Divider()
+            }
             Button("Choose from Photos…") { showPhotos = true }
             Button("Choose File…") { showFiles = true }
             if let deleteOriginals {
