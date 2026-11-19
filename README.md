@@ -28,11 +28,14 @@ persistence opinion.
   goes straight to the library. On macOS it's a menu: *Choose from
   Photos…*, *Choose File…* (any image in Finder) and *Remove Photo*.
 
-  On macOS, `.deleteOriginalsAfterImport($isOn)` adds a *Delete Original After
-  Import* checkmark to the menu. While on, an imported Finder file moves to the
-  Trash and a Photos pick to Recently Deleted. The host app needs read-write
-  user-selected files (`com.apple.security.files.user-selected.read-write`),
-  the photos-library entitlement and `NSPhotoLibraryUsageDescription`.
+  `.deleteOriginalsAfterImport($isOn)`: while on, a Photos pick moves to
+  Recently Deleted after import, and on macOS a Finder file moves to the Trash.
+  macOS shows it as a *Delete Original After Import* checkmark in the menu; the
+  iOS sheet can't hold a toggle, so offer it elsewhere (e.g. Settings) — the
+  sheet notes it while on. Hosts need `NSPhotoLibraryUsageDescription`; on
+  macOS also read-write user-selected files
+  (`com.apple.security.files.user-selected.read-write`) and the photos-library
+  entitlement.
 
   By default it hands back storage-ready JPEG `Data` — both paths run
   `reencodedForStorage` off the main actor, so a host app can't accidentally

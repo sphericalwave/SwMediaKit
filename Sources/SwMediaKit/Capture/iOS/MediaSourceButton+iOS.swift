@@ -8,6 +8,10 @@
 //  there. Take Photo opens `FramedCamera` (square viewfinder, shot already
 //  cropped) unless the config asks for the full-frame system camera.
 //
+//  With `.deleteOriginalsAfterImport($isOn)` on, a library pick goes to
+//  Recently Deleted once it's loaded, and the sheet says so. Camera shots
+//  have no original.
+//
 
 #if os(iOS)
 import SwiftUI
@@ -25,6 +29,7 @@ public struct MediaSourceButton<Label: View>: View {
     @State private var cameraShotFramed = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var cropQueue: [Data] = []
+    @Environment(\.deleteOriginalsAfterImport) private var deleteOriginals
 
     public var body: some View {
         Button {
@@ -45,14 +50,24 @@ public struct MediaSourceButton<Label: View>: View {
                 Button("Remove Photo", role: .destructive, action: onRemove)
             }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            if deleteOriginals?.wrappedValue == true {
+                Text("Photos chosen from the library move to Recently Deleted after import.")
+            }
         }
         .photosPicker(isPresented: $showLibrary, selection: $picked,
                       maxSelectionCount: config.maxSelectionCount,
-                      matching: config.matching)
+                      matching: config.matching,
+                      // Fills in `itemIdentifier`, which deleting the
+                      // original needs. Picking still needs no permission.
+                      photoLibrary: .shared())
         .onChange(of: picked) { _, items in
             guard !items.isEmpty else { return }
             picked = []
             config.deliverLibrary(items) { cropQueue += $0 }
+            if deleteOriginals?.wrappedValue == true {
+                Task { await PhotosOriginals.delete(items) }
+            }
         }
         // The shot goes out only once the camera is gone — a crop presented
         // while it's still dismissing gets dropped.
