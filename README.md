@@ -28,6 +28,12 @@ persistence opinion.
   goes straight to the library. On macOS it's a menu: *Choose from
   Photos…*, *Choose File…* (any image in Finder) and *Remove Photo*.
 
+  On macOS, `.deleteOriginalsAfterImport($isOn)` adds a *Delete Original After
+  Import* checkmark to the menu. While on, an imported Finder file moves to the
+  Trash and a Photos pick to Recently Deleted. The host app needs read-write
+  user-selected files (`com.apple.security.files.user-selected.read-write`),
+  the photos-library entitlement and `NSPhotoLibraryUsageDescription`.
+
   By default it hands back storage-ready JPEG `Data` — both paths run
   `reencodedForStorage` off the main actor, so a host app can't accidentally
   persist a full-resolution capture.

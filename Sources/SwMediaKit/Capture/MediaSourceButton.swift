@@ -199,6 +199,28 @@ public extension MediaSourceButton {
     }
 }
 
+private struct DeleteOriginalsAfterImportKey: EnvironmentKey {
+    static let defaultValue: Binding<Bool>? = nil
+}
+
+extension EnvironmentValues {
+    var deleteOriginalsAfterImport: Binding<Bool>? {
+        get { self[DeleteOriginalsAfterImportKey.self] }
+        set { self[DeleteOriginalsAfterImportKey.self] = newValue }
+    }
+}
+
+public extension View {
+    /// macOS: adds a "Delete Original After Import" checkmark to every
+    /// `MediaSourceButton` menu inside, bound to `isOn` (store it with
+    /// `@AppStorage` to remember it). While on, an imported Finder file moves
+    /// to the Trash and a Photos pick to Recently Deleted. Off by default, and
+    /// ignored on iOS.
+    func deleteOriginalsAfterImport(_ isOn: Binding<Bool>) -> some View {
+        environment(\.deleteOriginalsAfterImport, isOn)
+    }
+}
+
 public extension MediaSourceButton where Label == SwiftUI.Label<Text, Image> {
     /// Convenience for the common `Label(title, systemImage:)` case.
     init(_ title: String = "Add Photo",
