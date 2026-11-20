@@ -4,7 +4,9 @@
 //
 //  Small square thumbnail: a bundle-image flipbook, a decoded custom-photo
 //  flipbook, or a single image, with an SF Symbol fallback. Custom photos are
-//  decoded downsampled off the main actor for the tiny display size.
+//  decoded downsampled off the main actor for the tiny display size and kept
+//  in the shared `ThumbnailCache`, keyed by the photo bytes — so a replaced
+//  photo always reloads, and a row scrolling back in draws from cache.
 //
 
 import SwiftUI
@@ -18,8 +20,8 @@ public struct PosterThumbnail: View {
     var contentMode: ContentMode
     var borderColor: Color?
 
-    @State private var cachedPhotos: [PlatformImage] = []
-    @State private var cachedPhoto: PlatformImage? = nil
+    /// Decoded frames and the photo bytes they were decoded from.
+    @State private var loaded: (sources: [Data], images: [PlatformImage]) = ([], [])
 
     public init(assetName: String? = nil, assetNames: [String] = [],
                 photoData: Data? = nil, photos: [Data] = [], size: CGFloat = 48,
@@ -45,6 +47,22 @@ public struct PosterThumbnail: View {
 
     private var bundleNames: [String] {
         assetNames.isEmpty ? (assetName.map { [$0] } ?? []) : assetNames
+    }
+
+    /// Custom photos to show: the flipbook if given, else the single photo.
+    private var photoSources: [Data] {
+        photos.isEmpty ? (photoData.map { [$0] } ?? []) : photos
+    }
+
+    private var maxPixel: CGFloat { size * 3 }
+
+    /// Frames for the current photos: the last load if it matches, else a
+    /// synchronous cache hit (no placeholder flash), else none yet.
+    private var photoImages: [PlatformImage] {
+        let sources = photoSources
+        if loaded.sources == sources { return loaded.images }
+        let hits = sources.compactMap { ThumbnailCache.image(for: $0, maxPixel: maxPixel) }
+        return hits.count == sources.count ? hits : []
     }
 
     private var effectiveBorderGap: CGFloat {
@@ -76,14 +94,19 @@ public struct PosterThumbnail: View {
             }
         } else if let n = bundleNames.first {
             Image(n).resizable().aspectRatio(contentMode: contentMode)
-        } else if cachedPhotos.count > 1 {
+        } else {
+            photoContent(photoImages)
+        }
+    }
+
+    @ViewBuilder
+    private func photoContent(_ images: [PlatformImage]) -> some View {
+        if images.count > 1 {
             TimelineView(.periodic(from: .now, by: 0.333)) { tl in
-                let idx = Int(tl.date.timeIntervalSinceReferenceDate) % cachedPhotos.count
-                Image(platformImage: cachedPhotos[idx]).resizable().aspectRatio(contentMode: contentMode)
+                let idx = Int(tl.date.timeIntervalSinceReferenceDate) % images.count
+                Image(platformImage: images[idx]).resizable().aspectRatio(contentMode: contentMode)
             }
-        } else if let img = cachedPhotos.first {
-            Image(platformImage: img).resizable().aspectRatio(contentMode: contentMode)
-        } else if let img = cachedPhoto {
+        } else if let img = images.first {
             Image(platformImage: img).resizable().aspectRatio(contentMode: contentMode)
         } else {
             Image(systemName: "figure.yoga")
@@ -101,22 +124,30 @@ public struct PosterThumbnail: View {
             .padding(effectiveBorderGap)
             .background(outerBackground)
             .overlay(borderOverlay)
-            .task(id: photos.count) {
-                guard bundleNames.isEmpty else { return }
-                let data = photos
-                let maxPixel = size * 3
-                cachedPhotos = await Task.detached(priority: .userInitiated) {
-                    data.compactMap { PlatformImage.downsampled(data: $0, maxPixel: maxPixel) }
-                }.value
+            .task(id: photoSources) {
+                let sources = photoSources
+                guard bundleNames.isEmpty, !sources.isEmpty,
+                      loaded.sources != sources else { return }
+                let images = await Self.load(sources, maxPixel: maxPixel)
+                guard !Task.isCancelled else { return }
+                loaded = (sources, images)
             }
-            .task(id: photoData?.count) {
-                guard bundleNames.isEmpty, photos.isEmpty else { return }
-                let data = photoData
-                let maxPixel = size * 3
-                cachedPhoto = await Task.detached(priority: .userInitiated) {
-                    data.flatMap { PlatformImage.downsampled(data: $0, maxPixel: maxPixel) }
-                }.value
+    }
+
+    /// Off the main actor (nonisolated async); cancelled with the `.task`
+    /// when the row disappears, skipping any frames not yet decoded.
+    private nonisolated static func load(_ sources: [Data], maxPixel: CGFloat) async -> [PlatformImage] {
+        var images: [PlatformImage] = []
+        for data in sources {
+            if Task.isCancelled { return [] }
+            if let hit = ThumbnailCache.image(for: data, maxPixel: maxPixel) {
+                images.append(hit)
+            } else if let img = PlatformImage.downsampled(data: data, maxPixel: maxPixel) {
+                ThumbnailCache.insert(img, for: data, maxPixel: maxPixel)
+                images.append(img)
             }
+        }
+        return images
     }
 }
 
