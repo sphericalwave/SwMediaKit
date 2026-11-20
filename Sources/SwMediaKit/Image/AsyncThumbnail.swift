@@ -136,12 +136,12 @@ public extension AsyncThumbnail where Placeholder == Color {
     }
 }
 
-/// Process-wide decoded-thumbnail cache shared by every `AsyncThumbnail`.
-/// `NSCache` is thread-safe and evicts under memory pressure; cost is the
-/// decoded bitmap size, capped at ~64 MB.
+/// Process-wide decoded-thumbnail cache shared by `AsyncThumbnail` and
+/// `PosterThumbnail`. `NSCache` is thread-safe and evicts under memory
+/// pressure; cost is the decoded bitmap size, capped at ~64 MB.
 enum ThumbnailCache {
-    private static let cache: NSCache<NSString, PlatformImage> = {
-        let c = NSCache<NSString, PlatformImage>()
+    private static let cache: NSCache<NSObject, PlatformImage> = {
+        let c = NSCache<NSObject, PlatformImage>()
         c.totalCostLimit = 64 * 1024 * 1024
         return c
     }()
@@ -152,6 +152,43 @@ enum ThumbnailCache {
 
     static func insert(_ image: PlatformImage, for key: String) {
         cache.setObject(image, forKey: key as NSString, cost: image.decodedByteCost)
+    }
+
+    /// Keyed by the image bytes themselves, for callers with no stable id.
+    /// Cost includes the retained `Data`, since the key keeps it alive.
+    static func image(for data: Data, maxPixel: CGFloat) -> PlatformImage? {
+        cache.object(forKey: DataKey(data, maxPixel))
+    }
+
+    static func insert(_ image: PlatformImage, for data: Data, maxPixel: CGFloat) {
+        cache.setObject(image, forKey: DataKey(data, maxPixel),
+                        cost: image.decodedByteCost + data.count)
+    }
+
+    /// Content identity: equal only when the bytes are equal. The hash reads a
+    /// few bytes so lookups stay cheap; full comparison runs only on a hash match.
+    private final class DataKey: NSObject {
+        let data: Data
+        let maxPixel: Int
+
+        init(_ data: Data, _ maxPixel: CGFloat) {
+            self.data = data
+            self.maxPixel = Int(maxPixel)
+        }
+
+        override var hash: Int {
+            var h = Hasher()
+            h.combine(data.count)
+            h.combine(maxPixel)
+            h.combine(data.prefix(64))
+            h.combine(data.suffix(64))
+            return h.finalize()
+        }
+
+        override func isEqual(_ object: Any?) -> Bool {
+            guard let other = object as? DataKey else { return false }
+            return maxPixel == other.maxPixel && data == other.data
+        }
     }
 }
 
